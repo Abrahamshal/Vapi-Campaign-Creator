@@ -1,0 +1,130 @@
+import { ValidatedLead } from './dataValidator'
+
+export interface CampaignCreateResponse {
+  success: boolean
+  campaignId?: string
+  error?: string
+  details?: any
+}
+
+export interface BatchResult {
+  batchNumber: number
+  success: boolean
+  leadsProcessed: number
+  error?: string
+}
+
+export class VapiClient {
+  private apiKey: string
+  private baseUrl: string = '/api/vapi-proxy'
+
+  constructor(apiKey: string) {
+    this.apiKey = apiKey
+  }
+
+  async validateApiKey(): Promise<boolean> {
+    try {
+      const response = await fetch('/api/validate-key', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ apiKey: this.apiKey })
+      })
+
+      const data = await response.json()
+      return data.valid === true
+    } catch (error) {
+      console.error('API key validation error:', error)
+      return false
+    }
+  }
+
+  async createCampaign(
+    campaignName: string,
+    leads: ValidatedLead[],
+    onProgress?: (batchNumber: number, totalBatches: number) => void
+  ): Promise<CampaignCreateResponse> {
+    try {
+      const batchSize = 1000
+      const batches = this.createBatches(leads, batchSize)
+      const batchResults: BatchResult[] = []
+      
+      // Create the campaign first
+      const campaignResponse = await this.sendRequest('campaign', {
+        name: campaignName,
+        customers: batches[0] // Send first batch with campaign creation
+      })
+
+      if (!campaignResponse.ok) {
+        const error = await campaignResponse.json()
+        return {
+          success: false,
+          error: error.message || 'Failed to create campaign'
+        }
+      }
+
+      const campaignData = await campaignResponse.json()
+      const campaignId = campaignData.id
+
+      // Process remaining batches
+      for (let i = 1; i < batches.length; i++) {
+        if (onProgress) {
+          onProgress(i + 1, batches.length)
+        }
+
+        // Add delay between batches
+        await this.delay(2000)
+
+        const batchResponse = await this.sendRequest(`campaign/${campaignId}/customers`, {
+          customers: batches[i]
+        })
+
+        batchResults.push({
+          batchNumber: i + 1,
+          success: batchResponse.ok,
+          leadsProcessed: batches[i].length,
+          error: !batchResponse.ok ? 'Failed to add batch' : undefined
+        })
+      }
+
+      return {
+        success: true,
+        campaignId,
+        details: {
+          totalLeads: leads.length,
+          batches: batchResults
+        }
+      }
+    } catch (error) {
+      console.error('Campaign creation error:', error)
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error occurred'
+      }
+    }
+  }
+
+  private createBatches<T>(array: T[], batchSize: number): T[][] {
+    const batches: T[][] = []
+    for (let i = 0; i < array.length; i += batchSize) {
+      batches.push(array.slice(i, i + batchSize))
+    }
+    return batches
+  }
+
+  private async sendRequest(endpoint: string, body: any): Promise<Response> {
+    return fetch(`${this.baseUrl}/${endpoint}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Vapi-Key': this.apiKey
+      },
+      body: JSON.stringify(body)
+    })
+  }
+
+  private delay(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms))
+  }
+}

@@ -1,0 +1,358 @@
+'use client'
+
+import { useState, useCallback } from 'react'
+import { Card } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { FileUpload } from '@/components/FileUpload'
+import { FieldMapper } from '@/components/FieldMapper'
+import { ProgressTracker, ProgressStep } from '@/components/ProgressTracker'
+import { ResultSummary } from '@/components/ResultSummary'
+import { parseFile, detectColumns, extractDataByColumns } from '@/lib/fileParser'
+import { validateAndCleanData } from '@/lib/dataValidator'
+import { VapiClient } from '@/lib/vapiClient'
+import { ChunkProcessor } from '@/lib/chunkProcessor'
+import { Eye, EyeOff, AlertCircle } from 'lucide-react'
+
+type AppState = 'input' | 'mapping' | 'processing' | 'complete'
+
+export default function Home() {
+  const [appState, setAppState] = useState<AppState>('input')
+  const [apiKey, setApiKey] = useState('')
+  const [apiKeyValid, setApiKeyValid] = useState<boolean | null>(null)
+  const [showApiKey, setShowApiKey] = useState(false)
+  const [campaignName, setCampaignName] = useState('')
+  const [file, setFile] = useState<File | null>(null)
+  const [parsedData, setParsedData] = useState<any>(null)
+  const [columnMapping, setColumnMapping] = useState<any>(null)
+  const [processSteps, setProcessSteps] = useState<ProgressStep[]>([])
+  const [progress, setProgress] = useState(0)
+  const [result, setResult] = useState<any>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [isProcessing, setIsProcessing] = useState(false)
+
+  const validateApiKey = async () => {
+    if (!apiKey.startsWith('sk_')) {
+      setApiKeyValid(false)
+      return false
+    }
+
+    const client = new VapiClient(apiKey)
+    const isValid = await client.validateApiKey()
+    setApiKeyValid(isValid)
+    return isValid
+  }
+
+  const handleFileSelect = async (selectedFile: File) => {
+    setFile(selectedFile)
+    setError(null)
+    
+    try {
+      const data = await parseFile(selectedFile)
+      const detections = detectColumns(data.headers)
+      
+      setParsedData({
+        ...data,
+        detections
+      })
+    } catch (err) {
+      setError('Failed to parse file. Please check the format.')
+      setFile(null)
+    }
+  }
+
+  const handleStartProcessing = async () => {
+    if (!apiKey || !campaignName || !file) {
+      setError('Please fill in all required fields')
+      return
+    }
+
+    const isValid = await validateApiKey()
+    if (!isValid) {
+      setError('Invalid API key. Please check and try again.')
+      return
+    }
+
+    if (parsedData) {
+      setAppState('mapping')
+    }
+  }
+
+  const handleProcessData = async () => {
+    if (!columnMapping?.phoneColumn) {
+      setError('Please select a phone column')
+      return
+    }
+
+    setAppState('processing')
+    setIsProcessing(true)
+    setError(null)
+
+    const steps: ProgressStep[] = [
+      { label: 'Extracting data', status: 'in-progress' },
+      { label: 'Validating phone numbers', status: 'pending' },
+      { label: 'Removing duplicates', status: 'pending' },
+      { label: 'Creating campaign', status: 'pending' },
+      { label: 'Uploading leads', status: 'pending' }
+    ]
+    setProcessSteps(steps)
+
+    try {
+      const processor = new ChunkProcessor({
+        chunkSize: 1000,
+        useWebWorker: parsedData.totalRows > 10000,
+        onProgress: (processed, total) => {
+          setProgress(Math.round((processed / total) * 20))
+        }
+      })
+
+      // Step 1: Extract data
+      const extractedData = extractDataByColumns(
+        parsedData.rows,
+        columnMapping.phoneColumn,
+        columnMapping.nameColumn,
+        columnMapping.emailColumn
+      )
+
+      steps[0].status = 'completed'
+      steps[0].detail = `${extractedData.length} rows extracted`
+      steps[1].status = 'in-progress'
+      setProcessSteps([...steps])
+      setProgress(20)
+
+      // Step 2-3: Validate and clean data
+      const validationResult = await processor.processData(
+        [extractedData],
+        async (chunk) => {
+          const result = validateAndCleanData(chunk[0])
+          return [result]
+        }
+      )
+
+      const validation = validationResult[0]
+      
+      steps[1].status = 'completed'
+      steps[1].detail = `${validation.valid.length} valid numbers`
+      steps[2].status = 'completed'
+      steps[2].detail = `${validation.duplicates} duplicates removed`
+      steps[3].status = 'in-progress'
+      setProcessSteps([...steps])
+      setProgress(40)
+
+      // Step 4-5: Create campaign and upload leads
+      const client = new VapiClient(apiKey)
+      const campaignResult = await client.createCampaign(
+        campaignName,
+        validation.valid,
+        (batch, total) => {
+          const batchProgress = 40 + Math.round((batch / total) * 60)
+          setProgress(batchProgress)
+          steps[4].status = 'in-progress'
+          steps[4].detail = `Batch ${batch} of ${total}`
+          setProcessSteps([...steps])
+        }
+      )
+
+      if (campaignResult.success) {
+        steps[3].status = 'completed'
+        steps[4].status = 'completed'
+        steps[4].detail = `${validation.valid.length} leads uploaded`
+        setProcessSteps([...steps])
+        setProgress(100)
+
+        setResult({
+          success: true,
+          campaignId: campaignResult.campaignId,
+          ...validation.summary,
+          errors: validation.invalid
+        })
+      } else {
+        throw new Error(campaignResult.error || 'Failed to create campaign')
+      }
+
+      processor.destroy()
+      setAppState('complete')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred')
+      setAppState('input')
+    } finally {
+      setIsProcessing(false)
+    }
+  }
+
+  const handleDownloadReport = () => {
+    if (!result) return
+
+    const report = {
+      campaignName,
+      campaignId: result.campaignId,
+      timestamp: new Date().toISOString(),
+      summary: {
+        totalRows: result.totalRows,
+        validLeads: result.validRows,
+        invalidLeads: result.invalidRows,
+        duplicates: result.duplicateRows
+      },
+      errors: result.errors
+    }
+
+    const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `campaign-report-${Date.now()}.json`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const handleCreateAnother = () => {
+    setAppState('input')
+    setApiKey('')
+    setApiKeyValid(null)
+    setCampaignName('')
+    setFile(null)
+    setParsedData(null)
+    setColumnMapping(null)
+    setProcessSteps([])
+    setProgress(0)
+    setResult(null)
+    setError(null)
+  }
+
+  return (
+    <main className="min-h-screen bg-gray-50 p-4">
+      <div className="max-w-2xl mx-auto py-8">
+        <div className="text-center mb-8">
+          <h1 className="text-3xl font-bold mb-2">Vapi Campaign Builder</h1>
+          <p className="text-gray-600">
+            Create Vapi campaigns easily by uploading your lead list
+          </p>
+        </div>
+
+        {error && (
+          <Alert variant="destructive" className="mb-6">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+
+        {appState === 'input' && (
+          <Card className="p-6">
+            <div className="space-y-6">
+              <div>
+                <Label htmlFor="api-key">
+                  API Key
+                  {apiKeyValid === true && (
+                    <span className="ml-2 text-green-600 text-xs">✓ Valid</span>
+                  )}
+                  {apiKeyValid === false && (
+                    <span className="ml-2 text-destructive text-xs">✗ Invalid</span>
+                  )}
+                </Label>
+                <div className="relative mt-1">
+                  <Input
+                    id="api-key"
+                    type={showApiKey ? 'text' : 'password'}
+                    placeholder="sk_live_..."
+                    value={apiKey}
+                    onChange={(e) => {
+                      setApiKey(e.target.value)
+                      setApiKeyValid(null)
+                    }}
+                    onBlur={validateApiKey}
+                    className="pr-10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowApiKey(!showApiKey)}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 p-1 hover:bg-gray-100 rounded"
+                  >
+                    {showApiKey ? (
+                      <EyeOff className="h-4 w-4 text-gray-500" />
+                    ) : (
+                      <Eye className="h-4 w-4 text-gray-500" />
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <Label htmlFor="campaign-name">Campaign Name</Label>
+                <Input
+                  id="campaign-name"
+                  type="text"
+                  placeholder="Q1 Outreach"
+                  value={campaignName}
+                  onChange={(e) => setCampaignName(e.target.value)}
+                  className="mt-1"
+                />
+              </div>
+
+              <FileUpload onFileSelect={handleFileSelect} />
+
+              <Button
+                onClick={handleStartProcessing}
+                disabled={!apiKey || !campaignName || !file || isProcessing}
+                className="w-full"
+              >
+                {file ? 'Validate Data' : 'Create Campaign'}
+              </Button>
+            </div>
+          </Card>
+        )}
+
+        {appState === 'mapping' && parsedData && (
+          <div className="space-y-6">
+            <FieldMapper
+              headers={parsedData.headers}
+              detections={parsedData.detections}
+              sampleData={parsedData.rows.slice(0, 3)}
+              onMappingChange={setColumnMapping}
+            />
+            
+            <div className="flex gap-3">
+              <Button
+                variant="outline"
+                onClick={() => setAppState('input')}
+                className="flex-1"
+              >
+                Back
+              </Button>
+              <Button
+                onClick={handleProcessData}
+                disabled={!columnMapping?.phoneColumn}
+                className="flex-1"
+              >
+                Process Data
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {appState === 'processing' && (
+          <ProgressTracker
+            steps={processSteps}
+            progress={progress}
+          />
+        )}
+
+        {appState === 'complete' && result && (
+          <ResultSummary
+            success={result.success}
+            campaignId={result.campaignId}
+            totalLeads={result.totalRows}
+            validLeads={result.validRows}
+            invalidLeads={result.invalidRows}
+            duplicates={result.duplicateRows}
+            timeElapsed="2m 34s"
+            errors={result.errors}
+            onDownloadReport={handleDownloadReport}
+            onCreateAnother={handleCreateAnother}
+          />
+        )}
+      </div>
+    </main>
+  )
+}
