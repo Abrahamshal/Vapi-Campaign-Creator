@@ -96,29 +96,21 @@ export default function Home() {
             })
           ])
           
-          console.log('Fetched resources:', {
-            assistants: fetchedAssistants,
-            workflows: fetchedWorkflows,
-            phoneNumbers: fetchedPhoneNumbers,
-            assistantsCount: fetchedAssistants.length,
-            workflowsCount: fetchedWorkflows.length,
-            phoneNumbersCount: fetchedPhoneNumbers.length
-          })
-          
           setAssistants(fetchedAssistants)
           setWorkflows(fetchedWorkflows)
           setPhoneNumbers(fetchedPhoneNumbers)
           setLoadingResources(false)
           
-          // More detailed logging for debugging
-          if (fetchedPhoneNumbers.length > 0) {
-            console.log('Phone numbers available:', fetchedPhoneNumbers)
-          }
+          // Check for required resources
+          const hasAssistantsOrWorkflows = fetchedAssistants.length > 0 || fetchedWorkflows.length > 0
+          const hasPhoneNumbers = fetchedPhoneNumbers.length > 0
           
-          if (fetchedAssistants.length === 0 && fetchedWorkflows.length === 0) {
-            showAlert('warning', 'No assistants or workflows found', 'Please create an assistant or workflow in your Vapi account first')
-          } else if (fetchedPhoneNumbers.length === 0) {
-            showAlert('warning', 'No phone numbers found', 'Please add a phone number in your Vapi account to create campaigns')
+          if (!hasAssistantsOrWorkflows && !hasPhoneNumbers) {
+            showAlert('error', 'Missing required resources', 'You need at least one assistant/workflow AND one phone number in your Vapi account to create campaigns')
+          } else if (!hasAssistantsOrWorkflows) {
+            showAlert('error', 'No assistants or workflows found', 'Please create an assistant or workflow in your Vapi account first')
+          } else if (!hasPhoneNumbers) {
+            showAlert('error', 'No phone numbers found', 'Phone numbers are required for campaigns. Please add a phone number in your Vapi account settings before proceeding.')
           } else {
             showAlert('success', 'Resources loaded', `Found ${fetchedAssistants.length} assistants, ${fetchedWorkflows.length} workflows, and ${fetchedPhoneNumbers.length} phone numbers`)
           }
@@ -527,19 +519,15 @@ export default function Home() {
                 </div>
               )}
               
-              {/* Debug info - remove this after testing */}
-              {apiKeyValid && (
-                <div className="text-xs text-gray-500 p-2 bg-gray-100 rounded">
-                  <p>Debug Info:</p>
-                  <p>API Key Valid: {String(apiKeyValid)}</p>
-                  <p>Loading Resources: {String(loadingResources)}</p>
-                  <p>Phone Numbers Count: {phoneNumbers.length}</p>
-                  <p>Assistants Count: {assistants.length}</p>
-                  <p>Workflows Count: {workflows.length}</p>
-                  <p>Selected Type: {selectedType}</p>
-                  <p>Selected ID: {selectedId || 'None'}</p>
-                  <p>Selected Phone: {selectedPhoneNumberId || 'None'}</p>
-                </div>
+              {/* Show message when phone numbers are missing */}
+              {apiKeyValid && phoneNumbers.length === 0 && !loadingResources && (
+                <Alert className="bg-red-50 border-red-200">
+                  <AlertCircle className="h-4 w-4 text-red-600" />
+                  <AlertDescription className="text-red-800">
+                    <strong>Phone Number Required</strong>
+                    <p className="text-sm mt-1">You must add a phone number in your Vapi account to create campaigns. Visit your Vapi dashboard → Phone Numbers → Add Phone Number.</p>
+                  </AlertDescription>
+                </Alert>
               )}
 
               <FileUpload onFileSelect={handleFileSelect} />

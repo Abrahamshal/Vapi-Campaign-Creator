@@ -114,7 +114,6 @@ export class VapiClient {
 
   async getPhoneNumbers(): Promise<PhoneNumber[]> {
     try {
-      console.log('Fetching phone numbers from Vapi...')
       const response = await fetch(`${this.baseUrl}/phone-number`, {
         method: 'GET',
         headers: {
@@ -122,31 +121,22 @@ export class VapiClient {
           'X-Vapi-Key': this.apiKey
         }
       })
-
-      console.log('Phone number response status:', response.status)
       
       if (!response.ok) {
-        console.error('Failed to fetch phone numbers, status:', response.status)
-        const errorText = await response.text()
-        console.error('Error response:', errorText)
+        console.error('Failed to fetch phone numbers')
         return []
       }
 
       const data = await response.json()
-      console.log('Phone numbers received:', data)
       
       // Check if data is an array or has a specific structure
       if (Array.isArray(data)) {
-        console.log('Phone numbers is array, length:', data.length)
         return data
       } else if (data && Array.isArray(data.phoneNumbers)) {
-        console.log('Phone numbers in phoneNumbers property, length:', data.phoneNumbers.length)
         return data.phoneNumbers
       } else if (data && Array.isArray(data.data)) {
-        console.log('Phone numbers in data property, length:', data.data.length)
         return data.data
       } else {
-        console.log('Unexpected phone numbers format:', data)
         return []
       }
     } catch (error) {
