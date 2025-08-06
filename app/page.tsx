@@ -6,13 +6,15 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { FileUpload } from '@/components/FileUpload'
 import { FieldMapper } from '@/components/FieldMapper'
 import { ProgressTracker, ProgressStep } from '@/components/ProgressTracker'
 import { ResultSummary } from '@/components/ResultSummary'
 import { parseFile, detectColumns, extractDataByColumns } from '@/lib/fileParser'
 import { validateAndCleanData } from '@/lib/dataValidator'
-import { VapiClient } from '@/lib/vapiClient'
+import { VapiClient, Assistant, Workflow } from '@/lib/vapiClient'
 import { ChunkProcessor } from '@/lib/chunkProcessor'
 import { Eye, EyeOff, AlertCircle, CheckCircle2, Info, XCircle } from 'lucide-react'
 
@@ -39,6 +41,13 @@ export default function Home() {
   const [result, setResult] = useState<any>(null)
   const [alert, setAlert] = useState<AlertMessage | null>(null)
   const [isProcessing, setIsProcessing] = useState(false)
+  
+  // New state for assistants and workflows
+  const [assistants, setAssistants] = useState<Assistant[]>([])
+  const [workflows, setWorkflows] = useState<Workflow[]>([])
+  const [selectedType, setSelectedType] = useState<'assistant' | 'workflow'>('assistant')
+  const [selectedId, setSelectedId] = useState<string>('')
+  const [loadingResources, setLoadingResources] = useState(false)
 
   const showAlert = (type: AlertType, message: string, details?: string) => {
     setAlert({ type, message, details })
@@ -61,8 +70,28 @@ export default function Home() {
       const client = new VapiClient(apiKey)
       const isValid = await client.validateApiKey()
       setApiKeyValid(isValid)
+      
       if (isValid) {
         showAlert('success', 'API key validated successfully')
+        
+        // Fetch assistants and workflows
+        setLoadingResources(true)
+        showAlert('info', 'Loading assistants and workflows...')
+        
+        const [fetchedAssistants, fetchedWorkflows] = await Promise.all([
+          client.getAssistants(),
+          client.getWorkflows()
+        ])
+        
+        setAssistants(fetchedAssistants)
+        setWorkflows(fetchedWorkflows)
+        setLoadingResources(false)
+        
+        if (fetchedAssistants.length === 0 && fetchedWorkflows.length === 0) {
+          showAlert('warning', 'No assistants or workflows found', 'Please create an assistant or workflow in your Vapi account first')
+        } else {
+          showAlert('success', 'Resources loaded', `Found ${fetchedAssistants.length} assistants and ${fetchedWorkflows.length} workflows`)
+        }
       } else {
         showAlert('error', 'API key validation failed', 'Please check your API key and try again')
       }
@@ -97,6 +126,11 @@ export default function Home() {
   const handleStartProcessing = async () => {
     if (!apiKey || !campaignName || !file) {
       showAlert('warning', 'Missing required fields', 'Please enter API key, campaign name, and select a file')
+      return
+    }
+
+    if (apiKeyValid && !selectedId) {
+      showAlert('warning', 'No assistant or workflow selected', `Please select an ${selectedType} to use for the campaign`)
       return
     }
 
@@ -197,7 +231,9 @@ export default function Home() {
       const campaignResult = await client.createCampaign(
         campaignName,
         validation.valid,
-        (batch, total) => {
+        selectedType === 'assistant' ? selectedId : undefined,
+        selectedType === 'workflow' ? selectedId : undefined,
+        (batch: number, total: number) => {
           const batchProgress = 40 + Math.round((batch / total) * 60)
           setProgress(batchProgress)
           steps[4].status = 'in-progress'
@@ -365,11 +401,66 @@ export default function Home() {
                 />
               </div>
 
+              {/* Assistant/Workflow Selection */}
+              {apiKeyValid && (assistants.length > 0 || workflows.length > 0) && (
+                <>
+                  <div>
+                    <Label>Select Type</Label>
+                    <RadioGroup 
+                      value={selectedType} 
+                      onValueChange={(value) => {
+                        setSelectedType(value as 'assistant' | 'workflow')
+                        setSelectedId('') // Reset selection when type changes
+                      }}
+                      className="mt-2"
+                    >
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="assistant" id="assistant" disabled={assistants.length === 0} />
+                        <Label htmlFor="assistant" className="font-normal cursor-pointer">
+                          Assistant {assistants.length > 0 && `(${assistants.length})`}
+                        </Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="workflow" id="workflow" disabled={workflows.length === 0} />
+                        <Label htmlFor="workflow" className="font-normal cursor-pointer">
+                          Workflow {workflows.length > 0 && `(${workflows.length})`}
+                        </Label>
+                      </div>
+                    </RadioGroup>
+                  </div>
+
+                  <div>
+                    <Label>
+                      Select {selectedType === 'assistant' ? 'Assistant' : 'Workflow'}
+                    </Label>
+                    <Select value={selectedId} onValueChange={setSelectedId}>
+                      <SelectTrigger className="mt-1">
+                        <SelectValue placeholder={`Choose a ${selectedType}...`} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {selectedType === 'assistant' 
+                          ? assistants.map((assistant) => (
+                              <SelectItem key={assistant.id} value={assistant.id}>
+                                {assistant.name || `Assistant ${assistant.id.slice(0, 8)}`}
+                              </SelectItem>
+                            ))
+                          : workflows.map((workflow) => (
+                              <SelectItem key={workflow.id} value={workflow.id}>
+                                {workflow.name || `Workflow ${workflow.id.slice(0, 8)}`}
+                              </SelectItem>
+                            ))
+                        }
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </>
+              )}
+
               <FileUpload onFileSelect={handleFileSelect} />
 
               <Button
                 onClick={handleStartProcessing}
-                disabled={!apiKey || !campaignName || !file || isProcessing}
+                disabled={!apiKey || !campaignName || !file || isProcessing || (apiKeyValid === true && !selectedId)}
                 className="w-full"
               >
                 {isProcessing ? 'Processing...' : file ? 'Validate Data' : 'Create Campaign'}

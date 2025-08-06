@@ -14,6 +14,23 @@ export interface BatchResult {
   error?: string
 }
 
+export interface Assistant {
+  id: string
+  name: string
+  firstMessage?: string
+  model?: {
+    provider: string
+    model: string
+  }
+}
+
+export interface Workflow {
+  id: string
+  name: string
+  description?: string
+  createdAt?: string
+}
+
 export class VapiClient {
   private apiKey: string
   private baseUrl: string = '/api/vapi-proxy'
@@ -40,9 +57,57 @@ export class VapiClient {
     }
   }
 
+  async getAssistants(): Promise<Assistant[]> {
+    try {
+      const response = await fetch(`${this.baseUrl}/assistant`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Vapi-Key': this.apiKey
+        }
+      })
+
+      if (!response.ok) {
+        console.error('Failed to fetch assistants')
+        return []
+      }
+
+      const data = await response.json()
+      return Array.isArray(data) ? data : []
+    } catch (error) {
+      console.error('Error fetching assistants:', error)
+      return []
+    }
+  }
+
+  async getWorkflows(): Promise<Workflow[]> {
+    try {
+      const response = await fetch(`${this.baseUrl}/workflow`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Vapi-Key': this.apiKey
+        }
+      })
+
+      if (!response.ok) {
+        console.error('Failed to fetch workflows')
+        return []
+      }
+
+      const data = await response.json()
+      return Array.isArray(data) ? data : []
+    } catch (error) {
+      console.error('Error fetching workflows:', error)
+      return []
+    }
+  }
+
   async createCampaign(
     campaignName: string,
     leads: ValidatedLead[],
+    assistantId?: string,
+    workflowId?: string,
     onProgress?: (batchNumber: number, totalBatches: number) => void
   ): Promise<CampaignCreateResponse> {
     try {
@@ -51,10 +116,19 @@ export class VapiClient {
       const batchResults: BatchResult[] = []
       
       // Create the campaign first
-      const campaignResponse = await this.sendRequest('campaign', {
+      const campaignBody: any = {
         name: campaignName,
         customers: batches[0] // Send first batch with campaign creation
-      })
+      }
+      
+      // Add assistant or workflow ID
+      if (assistantId) {
+        campaignBody.assistantId = assistantId
+      } else if (workflowId) {
+        campaignBody.workflowId = workflowId
+      }
+      
+      const campaignResponse = await this.sendRequest('campaign', campaignBody)
 
       if (!campaignResponse.ok) {
         const error = await campaignResponse.json()
