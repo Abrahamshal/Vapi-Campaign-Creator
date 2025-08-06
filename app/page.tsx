@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useCallback } from 'react'
-import { Card } from '@/components/ui/card'
+import { useState } from 'react'
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -16,7 +16,7 @@ import { parseFile, detectColumns, extractDataByColumns } from '@/lib/fileParser
 import { validateAndCleanData } from '@/lib/dataValidator'
 import { VapiClient, Assistant, Workflow, PhoneNumber } from '@/lib/vapiClient'
 import { ChunkProcessor } from '@/lib/chunkProcessor'
-import { Eye, EyeOff, AlertCircle, CheckCircle2, Info, XCircle } from 'lucide-react'
+import { Eye, EyeOff, AlertCircle, CheckCircle2, Info, XCircle, Sparkles, Upload, Settings, Phone, Users, GitBranch } from 'lucide-react'
 
 type AppState = 'input' | 'mapping' | 'processing' | 'complete'
 type AlertType = 'error' | 'success' | 'info' | 'warning'
@@ -349,206 +349,327 @@ export default function Home() {
   }
 
   return (
-    <main className="min-h-screen bg-gray-50 p-4">
-      <div className="max-w-2xl mx-auto py-8">
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold mb-2">Vapi Campaign Builder</h1>
-          <p className="text-gray-600">
-            Create Vapi campaigns easily by uploading your lead list
+    <main className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 p-4">
+      <div className="max-w-4xl mx-auto py-8">
+        <div className="text-center mb-12">
+          <div className="flex items-center justify-center gap-3 mb-4">
+            <div className="p-3 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-xl shadow-lg">
+              <Sparkles className="h-8 w-8 text-white" />
+            </div>
+            <h1 className="text-4xl font-bold bg-gradient-to-r from-gray-900 via-blue-800 to-indigo-800 bg-clip-text text-transparent">
+              Vapi Campaign Builder
+            </h1>
+          </div>
+          <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+            Transform your lead lists into powerful Vapi campaigns with intelligent data validation and seamless API integration
           </p>
         </div>
 
         {alert && (
-          <Alert 
-            className={`mb-6 ${
-              alert.type === 'error' 
-                ? 'bg-gray-900 border-gray-700 text-red-500' 
-                : alert.type === 'success'
-                ? 'bg-green-50 border-green-200 text-green-800'
-                : alert.type === 'warning'
-                ? 'bg-yellow-50 border-yellow-200 text-yellow-800'
-                : 'bg-blue-50 border-blue-200 text-blue-800'
-            }`}
-            variant={alert.type === 'error' ? 'destructive' : 'default'}
-          >
-            <div className="flex items-start gap-2">
-              {alert.type === 'error' && <XCircle className="h-4 w-4 mt-0.5" />}
-              {alert.type === 'success' && <CheckCircle2 className="h-4 w-4 mt-0.5" />}
-              {alert.type === 'info' && <Info className="h-4 w-4 mt-0.5" />}
-              {alert.type === 'warning' && <AlertCircle className="h-4 w-4 mt-0.5" />}
-              <div className="flex-1">
-                <AlertDescription className={alert.type === 'error' ? 'text-red-400' : ''}>
-                  <strong>{alert.message}</strong>
-                  {alert.details && (
-                    <p className="text-sm mt-1 opacity-90">{alert.details}</p>
-                  )}
-                </AlertDescription>
+          <div className="mb-8">
+            <Alert 
+              className={`border-0 shadow-lg animate-in slide-in-from-top-2 duration-300 ${
+                alert.type === 'error' 
+                  ? 'bg-red-50 border-red-200/50 shadow-red-100' 
+                  : alert.type === 'success'
+                  ? 'bg-emerald-50 border-emerald-200/50 shadow-emerald-100'
+                  : alert.type === 'warning'
+                  ? 'bg-amber-50 border-amber-200/50 shadow-amber-100'
+                  : 'bg-blue-50 border-blue-200/50 shadow-blue-100'
+              }`}
+              variant={alert.type === 'error' ? 'destructive' : 'default'}
+            >
+              <div className="flex items-start gap-3">
+                <div className={`p-1 rounded-full ${
+                  alert.type === 'error' 
+                    ? 'bg-red-100' 
+                    : alert.type === 'success'
+                    ? 'bg-emerald-100'
+                    : alert.type === 'warning'
+                    ? 'bg-amber-100'
+                    : 'bg-blue-100'
+                }`}>
+                  {alert.type === 'error' && <XCircle className="h-5 w-5 text-red-600" />}
+                  {alert.type === 'success' && <CheckCircle2 className="h-5 w-5 text-emerald-600" />}
+                  {alert.type === 'info' && <Info className="h-5 w-5 text-blue-600" />}
+                  {alert.type === 'warning' && <AlertCircle className="h-5 w-5 text-amber-600" />}
+                </div>
+                <div className="flex-1 pt-0.5">
+                  <AlertDescription className={`${
+                    alert.type === 'error' 
+                      ? 'text-red-800' 
+                      : alert.type === 'success'
+                      ? 'text-emerald-800'
+                      : alert.type === 'warning'
+                      ? 'text-amber-800'
+                      : 'text-blue-800'
+                  }`}>
+                    <div className="font-semibold">{alert.message}</div>
+                    {alert.details && (
+                      <p className="text-sm mt-1 opacity-80">{alert.details}</p>
+                    )}
+                  </AlertDescription>
+                </div>
               </div>
-            </div>
-          </Alert>
+            </Alert>
+          </div>
         )}
 
         {appState === 'input' && (
-          <Card className="p-6">
-            <div className="space-y-6">
-              <div>
-                <Label htmlFor="api-key">
-                  API Key
-                  {apiKeyValid === true && (
-                    <span className="ml-2 text-green-600 text-xs">✓ Valid</span>
-                  )}
-                  {apiKeyValid === false && (
-                    <span className="ml-2 text-destructive text-xs">✗ Invalid</span>
-                  )}
-                </Label>
-                <div className="relative mt-1">
-                  <Input
-                    id="api-key"
-                    type={showApiKey ? 'text' : 'password'}
-                    placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-                    value={apiKey}
-                    onChange={(e) => {
-                      setApiKey(e.target.value)
-                      setApiKeyValid(null)
-                    }}
-                    onBlur={validateApiKey}
-                    className="pr-10"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowApiKey(!showApiKey)}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 p-1 hover:bg-gray-100 rounded"
-                  >
-                    {showApiKey ? (
-                      <EyeOff className="h-4 w-4 text-gray-500" />
-                    ) : (
-                      <Eye className="h-4 w-4 text-gray-500" />
-                    )}
-                  </button>
+          <Card className="shadow-xl border-0 bg-white/80 backdrop-blur-sm animate-in fade-in-50 duration-500">
+            <CardHeader className="text-center pb-6">
+              <CardTitle className="text-2xl text-gray-900 flex items-center justify-center gap-2">
+                <Settings className="h-6 w-6 text-blue-600" />
+                Campaign Configuration
+              </CardTitle>
+              <CardDescription className="text-gray-600">
+                Configure your API settings, select resources, and upload your lead data
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-8">
+              {/* API Configuration Section */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 mb-4">
+                  <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-lg flex items-center justify-center text-white font-semibold text-sm">
+                    1
+                  </div>
+                  <h3 className="text-lg font-semibold text-gray-900">API Authentication</h3>
+                </div>
+                <div className="bg-gray-50/50 p-6 rounded-lg border border-gray-100 space-y-4">
+                  <div>
+                    <Label htmlFor="api-key" className="text-sm font-medium text-gray-700">
+                      Vapi API Key
+                      {apiKeyValid === true && (
+                        <span className="ml-2 text-emerald-600 text-xs font-semibold bg-emerald-50 px-2 py-0.5 rounded-full">✓ Valid</span>
+                      )}
+                      {apiKeyValid === false && (
+                        <span className="ml-2 text-red-600 text-xs font-semibold bg-red-50 px-2 py-0.5 rounded-full">✗ Invalid</span>
+                      )}
+                    </Label>
+                    <div className="relative mt-2">
+                      <Input
+                        id="api-key"
+                        type={showApiKey ? 'text' : 'password'}
+                        placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                        value={apiKey}
+                        onChange={(e) => {
+                          setApiKey(e.target.value)
+                          setApiKeyValid(null)
+                        }}
+                        onBlur={validateApiKey}
+                        className="pr-10 h-11 bg-white shadow-sm border-gray-200 focus:border-blue-500 focus:ring-blue-500 transition-colors"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowApiKey(!showApiKey)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 p-1 hover:bg-gray-100 rounded-md transition-colors"
+                      >
+                        {showApiKey ? (
+                          <EyeOff className="h-4 w-4 text-gray-500" />
+                        ) : (
+                          <Eye className="h-4 w-4 text-gray-500" />
+                        )}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <Label htmlFor="campaign-name" className="text-sm font-medium text-gray-700">Campaign Name</Label>
+                    <Input
+                      id="campaign-name"
+                      type="text"
+                      placeholder="Q1 Outreach Campaign"
+                      value={campaignName}
+                      onChange={(e) => setCampaignName(e.target.value)}
+                      className="mt-2 h-11 bg-white shadow-sm border-gray-200 focus:border-blue-500 focus:ring-blue-500 transition-colors"
+                    />
+                  </div>
                 </div>
               </div>
 
-              <div>
-                <Label htmlFor="campaign-name">Campaign Name</Label>
-                <Input
-                  id="campaign-name"
-                  type="text"
-                  placeholder="Q1 Outreach"
-                  value={campaignName}
-                  onChange={(e) => setCampaignName(e.target.value)}
-                  className="mt-1"
-                />
-              </div>
-
-              {/* Assistant/Workflow Selection */}
+              {/* Resource Selection Section */}
               {apiKeyValid && (assistants.length > 0 || workflows.length > 0) && (
-                <>
-                  <div>
-                    <Label>Select Type</Label>
-                    <RadioGroup 
-                      value={selectedType} 
-                      onValueChange={(value) => {
-                        setSelectedType(value as 'assistant' | 'workflow')
-                        setSelectedId('') // Reset selection when type changes
-                      }}
-                      className="mt-2"
-                    >
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="assistant" id="assistant" disabled={assistants.length === 0} />
-                        <Label htmlFor="assistant" className="font-normal cursor-pointer">
-                          Assistant {assistants.length > 0 && `(${assistants.length})`}
-                        </Label>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="workflow" id="workflow" disabled={workflows.length === 0} />
-                        <Label htmlFor="workflow" className="font-normal cursor-pointer">
-                          Workflow {workflows.length > 0 && `(${workflows.length})`}
-                        </Label>
-                      </div>
-                    </RadioGroup>
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2 mb-4">
+                    <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg flex items-center justify-center text-white font-semibold text-sm">
+                      2
+                    </div>
+                    <h3 className="text-lg font-semibold text-gray-900">Campaign Resources</h3>
                   </div>
+                  <div className="bg-gray-50/50 p-6 rounded-lg border border-gray-100 space-y-4">
 
-                  <div>
-                    <Label>
-                      Select {selectedType === 'assistant' ? 'Assistant' : 'Workflow'}
-                    </Label>
-                    <Select value={selectedId} onValueChange={setSelectedId}>
-                      <SelectTrigger className="mt-1">
-                        <SelectValue placeholder={`Choose a ${selectedType}...`} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {selectedType === 'assistant' 
-                          ? assistants.map((assistant) => (
-                              <SelectItem key={assistant.id} value={assistant.id}>
-                                {assistant.name || `Assistant ${assistant.id.slice(0, 8)}`}
-                              </SelectItem>
-                            ))
-                          : workflows.map((workflow) => (
-                              <SelectItem key={workflow.id} value={workflow.id}>
-                                {workflow.name || `Workflow ${workflow.id.slice(0, 8)}`}
-                              </SelectItem>
-                            ))
-                        }
-                      </SelectContent>
-                    </Select>
+                    <div>
+                      <Label className="text-sm font-medium text-gray-700">Resource Type</Label>
+                      <RadioGroup 
+                        value={selectedType} 
+                        onValueChange={(value) => {
+                          setSelectedType(value as 'assistant' | 'workflow')
+                          setSelectedId('')
+                        }}
+                        className="mt-3 grid grid-cols-2 gap-4"
+                      >
+                        <div className={`relative flex items-center space-x-3 p-4 border rounded-lg cursor-pointer hover:bg-gray-50 transition-colors ${
+                          selectedType === 'assistant' ? 'border-blue-500 bg-blue-50/50' : 'border-gray-200'
+                        } ${assistants.length === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                          <RadioGroupItem value="assistant" id="assistant" disabled={assistants.length === 0} className="sr-only" />
+                          <Users className={`h-5 w-5 ${selectedType === 'assistant' ? 'text-blue-600' : 'text-gray-400'}`} />
+                          <Label htmlFor="assistant" className="font-medium cursor-pointer text-sm">
+                            Assistant
+                            {assistants.length > 0 && (
+                              <span className="block text-xs text-gray-500 mt-0.5">{assistants.length} available</span>
+                            )}
+                          </Label>
+                        </div>
+                        <div className={`relative flex items-center space-x-3 p-4 border rounded-lg cursor-pointer hover:bg-gray-50 transition-colors ${
+                          selectedType === 'workflow' ? 'border-blue-500 bg-blue-50/50' : 'border-gray-200'
+                        } ${workflows.length === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                          <RadioGroupItem value="workflow" id="workflow" disabled={workflows.length === 0} className="sr-only" />
+                          <GitBranch className={`h-5 w-5 ${selectedType === 'workflow' ? 'text-blue-600' : 'text-gray-400'}`} />
+                          <Label htmlFor="workflow" className="font-medium cursor-pointer text-sm">
+                            Workflow
+                            {workflows.length > 0 && (
+                              <span className="block text-xs text-gray-500 mt-0.5">{workflows.length} available</span>
+                            )}
+                          </Label>
+                        </div>
+                      </RadioGroup>
+                    </div>
+
+                    <div>
+                      <Label className="text-sm font-medium text-gray-700">
+                        Select {selectedType === 'assistant' ? 'Assistant' : 'Workflow'}
+                      </Label>
+                      <Select value={selectedId} onValueChange={setSelectedId}>
+                        <SelectTrigger className="mt-2 h-11 bg-white shadow-sm border-gray-200 focus:border-blue-500 focus:ring-blue-500">
+                          <SelectValue placeholder={`Choose a ${selectedType}...`} />
+                        </SelectTrigger>
+                        <SelectContent className="bg-white border border-gray-200 shadow-lg z-50">
+                          {selectedType === 'assistant' 
+                            ? assistants.map((assistant) => (
+                                <SelectItem key={assistant.id} value={assistant.id} className="hover:bg-blue-50 focus:bg-blue-50">
+                                  {assistant.name || `Assistant ${assistant.id.slice(0, 8)}`}
+                                </SelectItem>
+                              ))
+                            : workflows.map((workflow) => (
+                                <SelectItem key={workflow.id} value={workflow.id} className="hover:bg-blue-50 focus:bg-blue-50">
+                                  {workflow.name || `Workflow ${workflow.id.slice(0, 8)}`}
+                                </SelectItem>
+                              ))
+                          }
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
-                </>
+                </div>
               )}
 
-              {/* Phone Number Selection - Now outside the assistant/workflow condition */}
+              {/* Phone Number Selection */}
               {apiKeyValid && phoneNumbers.length > 0 && (
-                <div>
-                  <Label>Select Phone Number *</Label>
-                  <Select value={selectedPhoneNumberId} onValueChange={setSelectedPhoneNumberId}>
-                    <SelectTrigger className="mt-1">
-                      <SelectValue placeholder="Choose a phone number..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {phoneNumbers.map((phoneNumber) => (
-                        <SelectItem key={phoneNumber.id} value={phoneNumber.id}>
-                          {phoneNumber.name ? `${phoneNumber.name} (${phoneNumber.number})` : phoneNumber.number}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {selectedPhoneNumberId && (
-                    <p className="text-xs text-gray-500 mt-1">
-                      This number will be used for outbound calls
-                    </p>
-                  )}
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2 mb-4">
+                    <div className="w-8 h-8 bg-gradient-to-br from-emerald-500 to-teal-500 rounded-lg flex items-center justify-center text-white font-semibold text-sm">
+                      3
+                    </div>
+                    <h3 className="text-lg font-semibold text-gray-900">Phone Configuration</h3>
+                  </div>
+                  <div className="bg-gray-50/50 p-6 rounded-lg border border-gray-100">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Phone className="h-4 w-4 text-emerald-600" />
+                      <Label className="text-sm font-medium text-gray-700">Outbound Phone Number *</Label>
+                    </div>
+                    <Select value={selectedPhoneNumberId} onValueChange={setSelectedPhoneNumberId}>
+                      <SelectTrigger className="h-11 bg-white shadow-sm border-gray-200 focus:border-emerald-500 focus:ring-emerald-500">
+                        <SelectValue placeholder="Choose a phone number..." />
+                      </SelectTrigger>
+                      <SelectContent className="bg-white border border-gray-200 shadow-lg z-50">
+                        {phoneNumbers.map((phoneNumber) => (
+                          <SelectItem key={phoneNumber.id} value={phoneNumber.id} className="hover:bg-emerald-50 focus:bg-emerald-50">
+                            {phoneNumber.name ? `${phoneNumber.name} (${phoneNumber.number})` : phoneNumber.number}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {selectedPhoneNumberId && (
+                      <p className="text-xs text-emerald-600 mt-2 bg-emerald-50 px-3 py-2 rounded-md">
+                        ✓ This number will be used for outbound calls
+                      </p>
+                    )}
+                  </div>
                 </div>
               )}
               
               {/* Show message when phone numbers are missing */}
               {apiKeyValid && phoneNumbers.length === 0 && !loadingResources && (
-                <Alert className="bg-red-50 border-red-200">
-                  <AlertCircle className="h-4 w-4 text-red-600" />
+                <Alert className="bg-red-50 border-red-200/50 shadow-red-100">
+                  <div className="p-1 rounded-full bg-red-100">
+                    <AlertCircle className="h-5 w-5 text-red-600" />
+                  </div>
                   <AlertDescription className="text-red-800">
-                    <strong>Phone Number Required</strong>
-                    <p className="text-sm mt-1">You must add a phone number in your Vapi account to create campaigns. Visit your Vapi dashboard → Phone Numbers → Add Phone Number.</p>
+                    <div className="font-semibold">Phone Number Required</div>
+                    <p className="text-sm mt-1 opacity-80">You must add a phone number in your Vapi account to create campaigns. Visit your Vapi dashboard → Phone Numbers → Add Phone Number.</p>
                   </AlertDescription>
                 </Alert>
               )}
 
-              <FileUpload onFileSelect={handleFileSelect} />
+              {/* File Upload Section */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 mb-4">
+                  <div className="w-8 h-8 bg-gradient-to-br from-orange-500 to-red-500 rounded-lg flex items-center justify-center text-white font-semibold text-sm">
+                    4
+                  </div>
+                  <h3 className="text-lg font-semibold text-gray-900">Lead Data Upload</h3>
+                </div>
+                <div className="bg-gray-50/50 p-6 rounded-lg border border-gray-100">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Upload className="h-4 w-4 text-orange-600" />
+                    <Label className="text-sm font-medium text-gray-700">Upload Lead List</Label>
+                  </div>
+                  <FileUpload onFileSelect={handleFileSelect} />
+                </div>
+              </div>
 
-              <Button
-                onClick={handleStartProcessing}
-                disabled={!apiKey || !campaignName || !file || isProcessing || loadingResources || (apiKeyValid === true && (!selectedId || !selectedPhoneNumberId))}
-                className="w-full"
-                title={
-                  !apiKey ? 'Please enter an API key' :
-                  !campaignName ? 'Please enter a campaign name' :
-                  !file ? 'Please select a file' :
-                  loadingResources ? 'Loading resources...' :
-                  apiKeyValid === true && !selectedId ? 'Please select an assistant or workflow' :
-                  apiKeyValid === true && !selectedPhoneNumberId ? 'Please select a phone number' :
-                  'Click to validate data'
-                }
-              >
-                {isProcessing ? 'Processing...' : loadingResources ? 'Loading...' : file ? 'Validate Data' : 'Create Campaign'}
-              </Button>
-            </div>
+              {/* Action Button */}
+              <div className="pt-4 border-t border-gray-100">
+                <Button
+                  onClick={handleStartProcessing}
+                  disabled={!apiKey || !campaignName || !file || isProcessing || loadingResources || (apiKeyValid === true && (!selectedId || !selectedPhoneNumberId))}
+                  className="w-full h-12 text-base font-semibold bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-105 disabled:transform-none disabled:shadow-md"
+                  title={
+                    !apiKey ? 'Please enter an API key' :
+                    !campaignName ? 'Please enter a campaign name' :
+                    !file ? 'Please select a file' :
+                    loadingResources ? 'Loading resources...' :
+                    apiKeyValid === true && !selectedId ? 'Please select an assistant or workflow' :
+                    apiKeyValid === true && !selectedPhoneNumberId ? 'Please select a phone number' :
+                    'Click to validate data'
+                  }
+                >
+                  <div className="flex items-center gap-2">
+                    {isProcessing ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        Processing...
+                      </>
+                    ) : loadingResources ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        Loading Resources...
+                      </>
+                    ) : file ? (
+                      <>
+                        <CheckCircle2 className="h-4 w-4" />
+                        Validate Data
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="h-4 w-4" />
+                        Start Campaign Creation
+                      </>
+                    )}
+                  </div>
+                </Button>
+              </div>
+            </CardContent>
           </Card>
         )}
 
