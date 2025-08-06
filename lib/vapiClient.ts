@@ -31,6 +31,15 @@ export interface Workflow {
   createdAt?: string
 }
 
+export interface PhoneNumber {
+  id: string
+  number: string
+  name?: string
+  assistantId?: string
+  twilioPhoneNumber?: string
+  provider?: string
+}
+
 export class VapiClient {
   private apiKey: string
   private baseUrl: string = '/api/vapi-proxy'
@@ -103,11 +112,35 @@ export class VapiClient {
     }
   }
 
+  async getPhoneNumbers(): Promise<PhoneNumber[]> {
+    try {
+      const response = await fetch(`${this.baseUrl}/phone-number`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Vapi-Key': this.apiKey
+        }
+      })
+
+      if (!response.ok) {
+        console.error('Failed to fetch phone numbers')
+        return []
+      }
+
+      const data = await response.json()
+      return Array.isArray(data) ? data : []
+    } catch (error) {
+      console.error('Error fetching phone numbers:', error)
+      return []
+    }
+  }
+
   async createCampaign(
     campaignName: string,
     leads: ValidatedLead[],
     assistantId?: string,
     workflowId?: string,
+    phoneNumberId?: string,
     onProgress?: (batchNumber: number, totalBatches: number) => void
   ): Promise<CampaignCreateResponse> {
     try {
@@ -126,6 +159,11 @@ export class VapiClient {
         campaignBody.assistantId = assistantId
       } else if (workflowId) {
         campaignBody.workflowId = workflowId
+      }
+      
+      // Add phone number ID if provided
+      if (phoneNumberId) {
+        campaignBody.phoneNumberId = phoneNumberId
       }
       
       const campaignResponse = await this.sendRequest('campaign', campaignBody)

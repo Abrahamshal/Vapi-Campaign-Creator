@@ -14,7 +14,7 @@ import { ProgressTracker, ProgressStep } from '@/components/ProgressTracker'
 import { ResultSummary } from '@/components/ResultSummary'
 import { parseFile, detectColumns, extractDataByColumns } from '@/lib/fileParser'
 import { validateAndCleanData } from '@/lib/dataValidator'
-import { VapiClient, Assistant, Workflow } from '@/lib/vapiClient'
+import { VapiClient, Assistant, Workflow, PhoneNumber } from '@/lib/vapiClient'
 import { ChunkProcessor } from '@/lib/chunkProcessor'
 import { Eye, EyeOff, AlertCircle, CheckCircle2, Info, XCircle } from 'lucide-react'
 
@@ -45,8 +45,10 @@ export default function Home() {
   // New state for assistants and workflows
   const [assistants, setAssistants] = useState<Assistant[]>([])
   const [workflows, setWorkflows] = useState<Workflow[]>([])
+  const [phoneNumbers, setPhoneNumbers] = useState<PhoneNumber[]>([])
   const [selectedType, setSelectedType] = useState<'assistant' | 'workflow'>('assistant')
   const [selectedId, setSelectedId] = useState<string>('')
+  const [selectedPhoneNumberId, setSelectedPhoneNumberId] = useState<string>('')
   const [loadingResources, setLoadingResources] = useState(false)
 
   const showAlert = (type: AlertType, message: string, details?: string) => {
@@ -74,23 +76,27 @@ export default function Home() {
       if (isValid) {
         showAlert('success', 'API key validated successfully')
         
-        // Fetch assistants and workflows
+        // Fetch assistants, workflows, and phone numbers
         setLoadingResources(true)
-        showAlert('info', 'Loading assistants and workflows...')
+        showAlert('info', 'Loading resources...')
         
-        const [fetchedAssistants, fetchedWorkflows] = await Promise.all([
+        const [fetchedAssistants, fetchedWorkflows, fetchedPhoneNumbers] = await Promise.all([
           client.getAssistants(),
-          client.getWorkflows()
+          client.getWorkflows(),
+          client.getPhoneNumbers()
         ])
         
         setAssistants(fetchedAssistants)
         setWorkflows(fetchedWorkflows)
+        setPhoneNumbers(fetchedPhoneNumbers)
         setLoadingResources(false)
         
         if (fetchedAssistants.length === 0 && fetchedWorkflows.length === 0) {
           showAlert('warning', 'No assistants or workflows found', 'Please create an assistant or workflow in your Vapi account first')
+        } else if (fetchedPhoneNumbers.length === 0) {
+          showAlert('warning', 'No phone numbers found', 'Please add a phone number in your Vapi account to create campaigns')
         } else {
-          showAlert('success', 'Resources loaded', `Found ${fetchedAssistants.length} assistants and ${fetchedWorkflows.length} workflows`)
+          showAlert('success', 'Resources loaded', `Found ${fetchedAssistants.length} assistants, ${fetchedWorkflows.length} workflows, and ${fetchedPhoneNumbers.length} phone numbers`)
         }
       } else {
         showAlert('error', 'API key validation failed', 'Please check your API key and try again')
@@ -131,6 +137,11 @@ export default function Home() {
 
     if (apiKeyValid && !selectedId) {
       showAlert('warning', 'No assistant or workflow selected', `Please select an ${selectedType} to use for the campaign`)
+      return
+    }
+
+    if (apiKeyValid && !selectedPhoneNumberId) {
+      showAlert('warning', 'No phone number selected', 'Please select a phone number to use for outbound calls')
       return
     }
 
@@ -233,6 +244,7 @@ export default function Home() {
         validation.valid,
         selectedType === 'assistant' ? selectedId : undefined,
         selectedType === 'workflow' ? selectedId : undefined,
+        selectedPhoneNumberId,
         (batch: number, total: number) => {
           const batchProgress = 40 + Math.round((batch / total) * 60)
           setProgress(batchProgress)
@@ -307,6 +319,11 @@ export default function Home() {
     setProgress(0)
     setResult(null)
     setAlert(null)
+    setSelectedId('')
+    setSelectedPhoneNumberId('')
+    setAssistants([])
+    setWorkflows([])
+    setPhoneNumbers([])
   }
 
   return (
@@ -453,6 +470,30 @@ export default function Home() {
                       </SelectContent>
                     </Select>
                   </div>
+
+                  {/* Phone Number Selection */}
+                  {phoneNumbers.length > 0 && (
+                    <div>
+                      <Label>Select Phone Number</Label>
+                      <Select value={selectedPhoneNumberId} onValueChange={setSelectedPhoneNumberId}>
+                        <SelectTrigger className="mt-1">
+                          <SelectValue placeholder="Choose a phone number..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {phoneNumbers.map((phoneNumber) => (
+                            <SelectItem key={phoneNumber.id} value={phoneNumber.id}>
+                              {phoneNumber.name ? `${phoneNumber.name} (${phoneNumber.number})` : phoneNumber.number}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {selectedPhoneNumberId && (
+                        <p className="text-xs text-gray-500 mt-1">
+                          This number will be used for outbound calls
+                        </p>
+                      )}
+                    </div>
+                  )}
                 </>
               )}
 
@@ -460,7 +501,7 @@ export default function Home() {
 
               <Button
                 onClick={handleStartProcessing}
-                disabled={!apiKey || !campaignName || !file || isProcessing || (apiKeyValid === true && !selectedId)}
+                disabled={!apiKey || !campaignName || !file || isProcessing || (apiKeyValid === true && (!selectedId || !selectedPhoneNumberId))}
                 className="w-full"
               >
                 {isProcessing ? 'Processing...' : file ? 'Validate Data' : 'Create Campaign'}
