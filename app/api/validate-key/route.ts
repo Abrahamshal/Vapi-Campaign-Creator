@@ -4,10 +4,11 @@ export async function POST(request: NextRequest) {
   try {
     const { apiKey } = await request.json()
     
-    // Validate API key format
-    if (!apiKey?.startsWith('sk_')) {
+    // Validate API key format - Vapi uses UUIDs
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    if (!uuidRegex.test(apiKey)) {
       return NextResponse.json(
-        { valid: false, error: 'Invalid API key format' },
+        { valid: false, error: 'Invalid API key format - should be a UUID' },
         { status: 400 }
       )
     }

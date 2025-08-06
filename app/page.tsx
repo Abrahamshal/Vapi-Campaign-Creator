@@ -49,9 +49,11 @@ export default function Home() {
   }
 
   const validateApiKey = async () => {
-    if (!apiKey.startsWith('sk_')) {
+    // Vapi API keys are UUIDs in format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    if (!uuidRegex.test(apiKey)) {
       setApiKeyValid(false)
-      showAlert('error', 'Invalid API key format', 'API key must start with "sk_"')
+      showAlert('error', 'Invalid API key format', 'API key should be a valid UUID (e.g., a9bab1b8-c325-4705-bc57-9a07259f8129)')
       return false
     }
 
@@ -283,16 +285,24 @@ export default function Home() {
 
         {alert && (
           <Alert 
-            className="mb-6"
+            className={`mb-6 ${
+              alert.type === 'error' 
+                ? 'bg-gray-900 border-gray-700 text-red-500' 
+                : alert.type === 'success'
+                ? 'bg-green-50 border-green-200 text-green-800'
+                : alert.type === 'warning'
+                ? 'bg-yellow-50 border-yellow-200 text-yellow-800'
+                : 'bg-blue-50 border-blue-200 text-blue-800'
+            }`}
             variant={alert.type === 'error' ? 'destructive' : 'default'}
           >
             <div className="flex items-start gap-2">
               {alert.type === 'error' && <XCircle className="h-4 w-4 mt-0.5" />}
-              {alert.type === 'success' && <CheckCircle2 className="h-4 w-4 mt-0.5 text-green-600" />}
-              {alert.type === 'info' && <Info className="h-4 w-4 mt-0.5 text-blue-600" />}
-              {alert.type === 'warning' && <AlertCircle className="h-4 w-4 mt-0.5 text-yellow-600" />}
+              {alert.type === 'success' && <CheckCircle2 className="h-4 w-4 mt-0.5" />}
+              {alert.type === 'info' && <Info className="h-4 w-4 mt-0.5" />}
+              {alert.type === 'warning' && <AlertCircle className="h-4 w-4 mt-0.5" />}
               <div className="flex-1">
-                <AlertDescription>
+                <AlertDescription className={alert.type === 'error' ? 'text-red-400' : ''}>
                   <strong>{alert.message}</strong>
                   {alert.details && (
                     <p className="text-sm mt-1 opacity-90">{alert.details}</p>
@@ -320,7 +330,7 @@ export default function Home() {
                   <Input
                     id="api-key"
                     type={showApiKey ? 'text' : 'password'}
-                    placeholder="sk_live_..."
+                    placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
                     value={apiKey}
                     onChange={(e) => {
                       setApiKey(e.target.value)

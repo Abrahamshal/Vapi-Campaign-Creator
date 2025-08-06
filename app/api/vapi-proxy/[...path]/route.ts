@@ -28,10 +28,11 @@ export async function POST(
     // Extract user's API key from header
     const userApiKey = request.headers.get('x-vapi-key')
     
-    // Validate API key format
-    if (!userApiKey?.startsWith('sk_')) {
+    // Validate API key format - Vapi uses UUIDs
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    if (!userApiKey || !uuidRegex.test(userApiKey)) {
       return NextResponse.json(
-        { error: 'Invalid API key format' },
+        { error: 'Invalid API key format - should be a UUID' },
         { status: 400 }
       )
     }
@@ -86,10 +87,11 @@ export async function GET(
     // Extract user's API key from header
     const userApiKey = request.headers.get('x-vapi-key')
     
-    // Validate API key format
-    if (!userApiKey?.startsWith('sk_')) {
+    // Validate API key format - Vapi uses UUIDs
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    if (!userApiKey || !uuidRegex.test(userApiKey)) {
       return NextResponse.json(
-        { error: 'Invalid API key format' },
+        { error: 'Invalid API key format - should be a UUID' },
         { status: 400 }
       )
     }
