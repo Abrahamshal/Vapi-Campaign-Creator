@@ -80,29 +80,59 @@ export default function Home() {
         setLoadingResources(true)
         showAlert('info', 'Loading resources...')
         
-        const [fetchedAssistants, fetchedWorkflows, fetchedPhoneNumbers] = await Promise.all([
-          client.getAssistants(),
-          client.getWorkflows(),
-          client.getPhoneNumbers()
-        ])
-        
-        setAssistants(fetchedAssistants)
-        setWorkflows(fetchedWorkflows)
-        setPhoneNumbers(fetchedPhoneNumbers)
-        setLoadingResources(false)
-        
-        if (fetchedAssistants.length === 0 && fetchedWorkflows.length === 0) {
-          showAlert('warning', 'No assistants or workflows found', 'Please create an assistant or workflow in your Vapi account first')
-        } else if (fetchedPhoneNumbers.length === 0) {
-          showAlert('warning', 'No phone numbers found', 'Please add a phone number in your Vapi account to create campaigns')
-        } else {
-          showAlert('success', 'Resources loaded', `Found ${fetchedAssistants.length} assistants, ${fetchedWorkflows.length} workflows, and ${fetchedPhoneNumbers.length} phone numbers`)
+        try {
+          const [fetchedAssistants, fetchedWorkflows, fetchedPhoneNumbers] = await Promise.all([
+            client.getAssistants().catch(err => {
+              console.error('Error fetching assistants:', err)
+              return []
+            }),
+            client.getWorkflows().catch(err => {
+              console.error('Error fetching workflows:', err)
+              return []
+            }),
+            client.getPhoneNumbers().catch(err => {
+              console.error('Error fetching phone numbers:', err)
+              return []
+            })
+          ])
+          
+          console.log('Fetched resources:', {
+            assistants: fetchedAssistants,
+            workflows: fetchedWorkflows,
+            phoneNumbers: fetchedPhoneNumbers,
+            assistantsCount: fetchedAssistants.length,
+            workflowsCount: fetchedWorkflows.length,
+            phoneNumbersCount: fetchedPhoneNumbers.length
+          })
+          
+          setAssistants(fetchedAssistants)
+          setWorkflows(fetchedWorkflows)
+          setPhoneNumbers(fetchedPhoneNumbers)
+          setLoadingResources(false)
+          
+          // More detailed logging for debugging
+          if (fetchedPhoneNumbers.length > 0) {
+            console.log('Phone numbers available:', fetchedPhoneNumbers)
+          }
+          
+          if (fetchedAssistants.length === 0 && fetchedWorkflows.length === 0) {
+            showAlert('warning', 'No assistants or workflows found', 'Please create an assistant or workflow in your Vapi account first')
+          } else if (fetchedPhoneNumbers.length === 0) {
+            showAlert('warning', 'No phone numbers found', 'Please add a phone number in your Vapi account to create campaigns')
+          } else {
+            showAlert('success', 'Resources loaded', `Found ${fetchedAssistants.length} assistants, ${fetchedWorkflows.length} workflows, and ${fetchedPhoneNumbers.length} phone numbers`)
+          }
+        } catch (fetchError) {
+          console.error('Error fetching resources:', fetchError)
+          setLoadingResources(false)
+          showAlert('warning', 'Could not load all resources', 'Some resources may not be available')
         }
       } else {
         showAlert('error', 'API key validation failed', 'Please check your API key and try again')
       }
       return isValid
     } catch (error) {
+      console.error('API validation error:', error)
       showAlert('error', 'Failed to validate API key', 'Network error or server issue')
       return false
     }
@@ -470,41 +500,65 @@ export default function Home() {
                       </SelectContent>
                     </Select>
                   </div>
-
-                  {/* Phone Number Selection */}
-                  {phoneNumbers.length > 0 && (
-                    <div>
-                      <Label>Select Phone Number</Label>
-                      <Select value={selectedPhoneNumberId} onValueChange={setSelectedPhoneNumberId}>
-                        <SelectTrigger className="mt-1">
-                          <SelectValue placeholder="Choose a phone number..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {phoneNumbers.map((phoneNumber) => (
-                            <SelectItem key={phoneNumber.id} value={phoneNumber.id}>
-                              {phoneNumber.name ? `${phoneNumber.name} (${phoneNumber.number})` : phoneNumber.number}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      {selectedPhoneNumberId && (
-                        <p className="text-xs text-gray-500 mt-1">
-                          This number will be used for outbound calls
-                        </p>
-                      )}
-                    </div>
-                  )}
                 </>
+              )}
+
+              {/* Phone Number Selection - Now outside the assistant/workflow condition */}
+              {apiKeyValid && phoneNumbers.length > 0 && (
+                <div>
+                  <Label>Select Phone Number *</Label>
+                  <Select value={selectedPhoneNumberId} onValueChange={setSelectedPhoneNumberId}>
+                    <SelectTrigger className="mt-1">
+                      <SelectValue placeholder="Choose a phone number..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {phoneNumbers.map((phoneNumber) => (
+                        <SelectItem key={phoneNumber.id} value={phoneNumber.id}>
+                          {phoneNumber.name ? `${phoneNumber.name} (${phoneNumber.number})` : phoneNumber.number}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {selectedPhoneNumberId && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      This number will be used for outbound calls
+                    </p>
+                  )}
+                </div>
+              )}
+              
+              {/* Debug info - remove this after testing */}
+              {apiKeyValid && (
+                <div className="text-xs text-gray-500 p-2 bg-gray-100 rounded">
+                  <p>Debug Info:</p>
+                  <p>API Key Valid: {String(apiKeyValid)}</p>
+                  <p>Loading Resources: {String(loadingResources)}</p>
+                  <p>Phone Numbers Count: {phoneNumbers.length}</p>
+                  <p>Assistants Count: {assistants.length}</p>
+                  <p>Workflows Count: {workflows.length}</p>
+                  <p>Selected Type: {selectedType}</p>
+                  <p>Selected ID: {selectedId || 'None'}</p>
+                  <p>Selected Phone: {selectedPhoneNumberId || 'None'}</p>
+                </div>
               )}
 
               <FileUpload onFileSelect={handleFileSelect} />
 
               <Button
                 onClick={handleStartProcessing}
-                disabled={!apiKey || !campaignName || !file || isProcessing || (apiKeyValid === true && (!selectedId || !selectedPhoneNumberId))}
+                disabled={!apiKey || !campaignName || !file || isProcessing || loadingResources || (apiKeyValid === true && (!selectedId || !selectedPhoneNumberId))}
                 className="w-full"
+                title={
+                  !apiKey ? 'Please enter an API key' :
+                  !campaignName ? 'Please enter a campaign name' :
+                  !file ? 'Please select a file' :
+                  loadingResources ? 'Loading resources...' :
+                  apiKeyValid === true && !selectedId ? 'Please select an assistant or workflow' :
+                  apiKeyValid === true && !selectedPhoneNumberId ? 'Please select a phone number' :
+                  'Click to validate data'
+                }
               >
-                {isProcessing ? 'Processing...' : file ? 'Validate Data' : 'Create Campaign'}
+                {isProcessing ? 'Processing...' : loadingResources ? 'Loading...' : file ? 'Validate Data' : 'Create Campaign'}
               </Button>
             </div>
           </Card>
