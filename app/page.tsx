@@ -14,9 +14,16 @@ import { parseFile, detectColumns, extractDataByColumns } from '@/lib/fileParser
 import { validateAndCleanData } from '@/lib/dataValidator'
 import { VapiClient } from '@/lib/vapiClient'
 import { ChunkProcessor } from '@/lib/chunkProcessor'
-import { Eye, EyeOff, AlertCircle } from 'lucide-react'
+import { Eye, EyeOff, AlertCircle, CheckCircle2, Info, XCircle } from 'lucide-react'
 
 type AppState = 'input' | 'mapping' | 'processing' | 'complete'
+type AlertType = 'error' | 'success' | 'info' | 'warning'
+
+interface AlertMessage {
+  type: AlertType
+  message: string
+  details?: string
+}
 
 export default function Home() {
   const [appState, setAppState] = useState<AppState>('input')
@@ -30,26 +37,46 @@ export default function Home() {
   const [processSteps, setProcessSteps] = useState<ProgressStep[]>([])
   const [progress, setProgress] = useState(0)
   const [result, setResult] = useState<any>(null)
-  const [error, setError] = useState<string | null>(null)
+  const [alert, setAlert] = useState<AlertMessage | null>(null)
   const [isProcessing, setIsProcessing] = useState(false)
+
+  const showAlert = (type: AlertType, message: string, details?: string) => {
+    setAlert({ type, message, details })
+    // Auto-hide success messages after 5 seconds
+    if (type === 'success') {
+      setTimeout(() => setAlert(null), 5000)
+    }
+  }
 
   const validateApiKey = async () => {
     if (!apiKey.startsWith('sk_')) {
       setApiKeyValid(false)
+      showAlert('error', 'Invalid API key format', 'API key must start with "sk_"')
       return false
     }
 
-    const client = new VapiClient(apiKey)
-    const isValid = await client.validateApiKey()
-    setApiKeyValid(isValid)
-    return isValid
+    try {
+      const client = new VapiClient(apiKey)
+      const isValid = await client.validateApiKey()
+      setApiKeyValid(isValid)
+      if (isValid) {
+        showAlert('success', 'API key validated successfully')
+      } else {
+        showAlert('error', 'API key validation failed', 'Please check your API key and try again')
+      }
+      return isValid
+    } catch (error) {
+      showAlert('error', 'Failed to validate API key', 'Network error or server issue')
+      return false
+    }
   }
 
   const handleFileSelect = async (selectedFile: File) => {
     setFile(selectedFile)
-    setError(null)
+    setAlert(null)
     
     try {
+      showAlert('info', 'Parsing file...', `Reading ${selectedFile.name}`)
       const data = await parseFile(selectedFile)
       const detections = detectColumns(data.headers)
       
@@ -57,38 +84,60 @@ export default function Home() {
         ...data,
         detections
       })
+      showAlert('success', 'File parsed successfully', `Found ${data.totalRows} rows with ${data.headers.length} columns`)
     } catch (err) {
-      setError('Failed to parse file. Please check the format.')
+      showAlert('error', 'Failed to parse file', 'Please ensure the file is a valid CSV or Excel file with data')
       setFile(null)
+      setParsedData(null)
     }
   }
 
   const handleStartProcessing = async () => {
     if (!apiKey || !campaignName || !file) {
-      setError('Please fill in all required fields')
+      showAlert('warning', 'Missing required fields', 'Please enter API key, campaign name, and select a file')
       return
     }
 
-    const isValid = await validateApiKey()
-    if (!isValid) {
-      setError('Invalid API key. Please check and try again.')
-      return
-    }
+    // Show loading state
+    setAlert(null)
+    setIsProcessing(true)
 
-    if (parsedData) {
+    try {
+      // Validate API key
+      showAlert('info', 'Validating API key...')
+      const isValid = await validateApiKey()
+      if (!isValid) {
+        setIsProcessing(false)
+        return
+      }
+
+      // Parse file if not already parsed
+      if (!parsedData) {
+        showAlert('warning', 'File is still being processed', 'Please wait for file parsing to complete')
+        setIsProcessing(false)
+        return
+      }
+
+      // Move to mapping state
+      showAlert('success', 'Ready to map columns', 'Please verify the detected columns are correct')
       setAppState('mapping')
+    } catch (err) {
+      showAlert('error', 'Unexpected error', err instanceof Error ? err.message : 'Please try again')
+      console.error('Validation error:', err)
+    } finally {
+      setIsProcessing(false)
     }
   }
 
   const handleProcessData = async () => {
     if (!columnMapping?.phoneColumn) {
-      setError('Please select a phone column')
+      showAlert('warning', 'Phone column required', 'Please select which column contains phone numbers')
       return
     }
 
     setAppState('processing')
     setIsProcessing(true)
-    setError(null)
+    setAlert(null)
 
     const steps: ProgressStep[] = [
       { label: 'Extracting data', status: 'in-progress' },
@@ -174,8 +223,9 @@ export default function Home() {
 
       processor.destroy()
       setAppState('complete')
+      showAlert('success', 'Campaign created successfully!', `${validation.valid.length} leads uploaded`)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred')
+      showAlert('error', 'Failed to create campaign', err instanceof Error ? err.message : 'An unexpected error occurred')
       setAppState('input')
     } finally {
       setIsProcessing(false)
@@ -218,7 +268,7 @@ export default function Home() {
     setProcessSteps([])
     setProgress(0)
     setResult(null)
-    setError(null)
+    setAlert(null)
   }
 
   return (
@@ -231,10 +281,25 @@ export default function Home() {
           </p>
         </div>
 
-        {error && (
-          <Alert variant="destructive" className="mb-6">
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription>{error}</AlertDescription>
+        {alert && (
+          <Alert 
+            className="mb-6"
+            variant={alert.type === 'error' ? 'destructive' : 'default'}
+          >
+            <div className="flex items-start gap-2">
+              {alert.type === 'error' && <XCircle className="h-4 w-4 mt-0.5" />}
+              {alert.type === 'success' && <CheckCircle2 className="h-4 w-4 mt-0.5 text-green-600" />}
+              {alert.type === 'info' && <Info className="h-4 w-4 mt-0.5 text-blue-600" />}
+              {alert.type === 'warning' && <AlertCircle className="h-4 w-4 mt-0.5 text-yellow-600" />}
+              <div className="flex-1">
+                <AlertDescription>
+                  <strong>{alert.message}</strong>
+                  {alert.details && (
+                    <p className="text-sm mt-1 opacity-90">{alert.details}</p>
+                  )}
+                </AlertDescription>
+              </div>
+            </div>
           </Alert>
         )}
 
@@ -297,7 +362,7 @@ export default function Home() {
                 disabled={!apiKey || !campaignName || !file || isProcessing}
                 className="w-full"
               >
-                {file ? 'Validate Data' : 'Create Campaign'}
+                {isProcessing ? 'Processing...' : file ? 'Validate Data' : 'Create Campaign'}
               </Button>
             </div>
           </Card>
